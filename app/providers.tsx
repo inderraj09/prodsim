@@ -1,7 +1,9 @@
 "use client";
 
 import { ReactNode } from "react";
-import { ConvexReactClient, ConvexProvider } from "convex/react";
+import { ConvexReactClient } from "convex/react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { useAuth } from "@clerk/nextjs";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -16,12 +18,12 @@ export function Providers({ children }: { children: ReactNode }) {
       enableSystem={false}
       disableTransitionOnChange
     >
-      <ConvexProvider client={convex}>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <TooltipProvider delayDuration={200}>
           {children}
           <Toaster />
         </TooltipProvider>
-      </ConvexProvider>
+      </ConvexProviderWithClerk>
     </ThemeProvider>
   );
 }
