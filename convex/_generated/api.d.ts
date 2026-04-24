@@ -9,6 +9,8 @@
  */
 
 import type * as crons from "../crons.js";
+import type * as lib_timeIST from "../lib/timeIST.js";
+import type * as playWindows from "../playWindows.js";
 import type * as scenarios from "../scenarios.js";
 import type * as seed from "../seed.js";
 import type * as users from "../users.js";
@@ -21,6 +23,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
+  "lib/timeIST": typeof lib_timeIST;
+  playWindows: typeof playWindows;
   scenarios: typeof scenarios;
   seed: typeof seed;
   users: typeof users;
