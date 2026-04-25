@@ -92,6 +92,7 @@ export const get = query({
         title: scenario.title,
         body: scenario.body,
         difficulty: scenario.difficulty,
+        isBossScenario: scenario.isBossScenario,
       },
     };
   },

@@ -9,7 +9,12 @@ export function JudgingState({
   scenario,
 }: {
   attempt: Doc<"attempts">;
-  scenario: { title: string; body: string; difficulty: string };
+  scenario: {
+    title: string;
+    body: string;
+    difficulty: string;
+    isBossScenario: boolean;
+  };
 }) {
   return (
     <main className="flex flex-1 flex-col gap-6 px-5 pt-6 pb-10">

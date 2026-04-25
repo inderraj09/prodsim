@@ -14,9 +14,24 @@ const NPC_BY_LEVEL: Record<number, { name: string; role: string }> = {
 };
 
 export function ScenarioCard({ scenario }: { scenario: Doc<"scenarios"> }) {
-  const npc = NPC_BY_LEVEL[scenario.level] ?? { name: "Anonymous", role: "PM" };
+  const isBoss = scenario.isBossScenario;
+  const npc = isBoss
+    ? { name: "Sam", role: "skip-level VP" }
+    : NPC_BY_LEVEL[scenario.level] ?? { name: "Anonymous", role: "PM" };
+
   return (
-    <Card className="flex flex-col gap-4 p-5">
+    <Card
+      className={`flex flex-col gap-4 p-5 ${
+        isBoss
+          ? "border-destructive/50 bg-gradient-to-br from-destructive/10 via-destructive/5 to-card"
+          : ""
+      }`}
+    >
+      {isBoss ? (
+        <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-destructive">
+          Boss Fight · L{scenario.level} → L{scenario.level + 1}
+        </span>
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
@@ -26,13 +41,21 @@ export function ScenarioCard({ scenario }: { scenario: Doc<"scenarios"> }) {
             {scenario.title}
           </h2>
         </div>
-        <Badge variant="secondary" className="shrink-0 capitalize">
+        <Badge
+          variant={isBoss ? "destructive" : "secondary"}
+          className="shrink-0 capitalize"
+        >
           {scenario.difficulty}
         </Badge>
       </div>
       <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/90">
         {scenario.body}
       </p>
+      {isBoss ? (
+        <p className="text-xs leading-6 text-destructive/90">
+          Pass criteria: composite ≥14 / 20, no dimension below 3.
+        </p>
+      ) : null}
     </Card>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
+import { useQuery } from "convex/react";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { api } from "@/convex/_generated/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +15,14 @@ import { RubricGrid } from "./rubric-grid";
 import { XPCounter } from "./xp-counter";
 import { LevelUpBanner } from "./level-up-banner";
 import { ShareSheet } from "./share-sheet";
+import { BossFightBanner } from "./boss-fight-banner";
+
+function formatHoursLeft(retryAvailableAt: number): string {
+  const ms = retryAvailableAt - Date.now();
+  if (ms <= 0) return "now";
+  const hours = Math.ceil(ms / (60 * 60 * 1000));
+  return `${hours}h`;
+}
 
 export function ResultScreen({
   attempt,
@@ -20,7 +30,12 @@ export function ResultScreen({
   user,
 }: {
   attempt: Doc<"attempts">;
-  scenario: { title: string; body: string; difficulty: string };
+  scenario: {
+    title: string;
+    body: string;
+    difficulty: string;
+    isBossScenario: boolean;
+  };
   user: Doc<"users">;
 }) {
   if (
@@ -35,9 +50,30 @@ export function ResultScreen({
     return null;
   }
 
+  const bossForAttempt = useQuery(api.bossFights.getForAttempt, {
+    attemptId: attempt._id,
+  });
+  const pendingBoss = useQuery(api.bossFights.getPending);
+
   const oldTotalXP = user.totalXP - attempt.xpAwarded;
   const oldLevel = levelForTotalXP(oldTotalXP);
-  const justLeveledUp = user.level > oldLevel && oldLevel >= 3;
+  const regularLevelUp =
+    !scenario.isBossScenario && user.level > oldLevel && oldLevel >= 3;
+  const bossPassed =
+    scenario.isBossScenario && bossForAttempt?.passed === true;
+  const justLeveledUp = regularLevelUp || bossPassed;
+  const levelUpToLevel = bossPassed
+    ? (bossForAttempt?.toLevel ?? user.level)
+    : user.level;
+
+  const bossFailed =
+    scenario.isBossScenario && bossForAttempt?.passed === false;
+  const showBossInvite =
+    !scenario.isBossScenario &&
+    pendingBoss !== undefined &&
+    pendingBoss !== null &&
+    !pendingBoss.attempted &&
+    !pendingBoss.inCooldown;
 
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -142,6 +178,33 @@ export function ResultScreen({
           </div>
         </motion.div>
 
+        {bossFailed && bossForAttempt?.retryAvailableAt ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.55 }}
+            className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5"
+          >
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-destructive">
+                Boss Fight · L{bossForAttempt.fromLevel} → L
+                {bossForAttempt.toLevel}
+              </span>
+              <h3 className="text-base font-semibold">
+                Sam wasn&rsquo;t convinced.
+              </h3>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Composite has to be ≥14 with no dimension below 3. Try again
+                in {formatHoursLeft(bossForAttempt.retryAvailableAt)}.
+              </p>
+            </div>
+          </motion.div>
+        ) : null}
+
+        {showBossInvite && pendingBoss ? (
+          <BossFightBanner fromLevel={pendingBoss.fromLevel} />
+        ) : null}
+
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -183,7 +246,7 @@ export function ResultScreen({
         onOpenChange={setShareOpen}
       />
 
-      {justLeveledUp ? <LevelUpBanner newLevel={user.level} /> : null}
+      {justLeveledUp ? <LevelUpBanner newLevel={levelUpToLevel} /> : null}
     </>
   );
 }

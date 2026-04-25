@@ -1,4 +1,26 @@
+import { v } from "convex/values";
 import { query } from "./_generated/server";
+
+export const getForAttempt = query({
+  args: { attemptId: v.id("attempts") },
+  handler: async (ctx, args) => {
+    const attempt = await ctx.db.get(args.attemptId);
+    if (!attempt) return null;
+    const candidates = await ctx.db
+      .query("bossFights")
+      .withIndex("by_user", (q) => q.eq("userId", attempt.userId))
+      .take(20);
+    const match = candidates.find((bf) => bf.attemptId === args.attemptId);
+    if (!match) return null;
+    return {
+      bossFightId: match._id,
+      fromLevel: match.fromLevel,
+      toLevel: match.toLevel,
+      passed: match.passed,
+      retryAvailableAt: match.retryAvailableAt ?? null,
+    };
+  },
+});
 
 export const getPending = query({
   args: {},
