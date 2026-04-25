@@ -12,6 +12,7 @@ import type * as attempts from "../attempts.js";
 import type * as crons from "../crons.js";
 import type * as judge from "../judge.js";
 import type * as judgeInternal from "../judgeInternal.js";
+import type * as leaderboard from "../leaderboard.js";
 import type * as lib_prompts from "../lib/prompts.js";
 import type * as lib_timeIST from "../lib/timeIST.js";
 import type * as lib_xp from "../lib/xp.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   judge: typeof judge;
   judgeInternal: typeof judgeInternal;
+  leaderboard: typeof leaderboard;
   "lib/prompts": typeof lib_prompts;
   "lib/timeIST": typeof lib_timeIST;
   "lib/xp": typeof lib_xp;
