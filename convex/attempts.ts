@@ -16,6 +16,7 @@ export const submit = mutation({
   args: {
     scenarioId: v.id("scenarios"),
     answer: v.string(),
+    referrerHandle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const started = Date.now();
@@ -43,12 +44,36 @@ export const submit = mutation({
     if (!scenario) throw new Error("Scenario not found");
     if (scenario.hidden) throw new Error("Scenario unavailable");
 
+    let challengerUserId: typeof user._id | undefined;
+    if (args.referrerHandle && args.referrerHandle.length > 0) {
+      const normalized = args.referrerHandle.trim().toLowerCase();
+      const challenger = await ctx.db
+        .query("users")
+        .withIndex("by_handle", (q) => q.eq("handle", normalized))
+        .unique();
+      if (challenger && challenger._id !== user._id) {
+        challengerUserId = challenger._id;
+      }
+    }
+
     const attemptId = await ctx.db.insert("attempts", {
       userId: user._id,
       scenarioId: args.scenarioId,
       answer: args.answer,
       status: "pending",
+      ...(challengerUserId
+        ? { challengeContext: { challengerUserId } }
+        : {}),
     });
+
+    if (challengerUserId) {
+      await ctx.db.insert("challenges", {
+        challengerUserId,
+        challengedUserId: user._id,
+        attemptId,
+        accepted: true,
+      });
+    }
 
     await incrementPlayUsage(ctx, user._id);
 
@@ -58,6 +83,7 @@ export const submit = mutation({
       userId: user._id,
       scenarioId: args.scenarioId,
       attemptId,
+      challengerUserId: challengerUserId ?? null,
       durationMs: Date.now() - started,
     });
 

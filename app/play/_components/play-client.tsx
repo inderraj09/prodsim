@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -13,6 +13,9 @@ import { AnswerForm } from "./answer-form";
 
 export function PlayClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Capture ref handle once on mount; survives URL changes after submit.
+  const [referrerHandle] = useState(() => searchParams.get("ref"));
   const me = useQuery(api.users.getMe);
   const scenario = useQuery(api.scenarios.getTodaysScenario);
   const cap = useQuery(api.playWindows.canPlay);
@@ -51,6 +54,7 @@ export function PlayClient() {
       const attemptId = await submit({
         scenarioId: scenario._id,
         answer,
+        ...(referrerHandle ? { referrerHandle } : {}),
       });
       router.push(`/play/${attemptId}`);
     } catch (err) {

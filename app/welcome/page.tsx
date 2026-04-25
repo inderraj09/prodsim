@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -14,8 +14,31 @@ import { toast } from "sonner";
 
 const HANDLE_REGEX = /^[a-z0-9_]{3,20}$/;
 
+function WelcomeSkeleton() {
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <div className="w-full max-w-sm space-y-4">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </div>
+    </main>
+  );
+}
+
 export default function WelcomePage() {
+  return (
+    <Suspense fallback={<WelcomeSkeleton />}>
+      <WelcomeForm />
+    </Suspense>
+  );
+}
+
+function WelcomeForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const ref = searchParams.get("ref");
+  const playTarget = ref ? `/play?ref=${encodeURIComponent(ref)}` : "/play";
   const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
   const me = useQuery(api.users.getMe, isSignedIn ? {} : "skip");
   const completeOnboarding = useMutation(api.users.completeOnboarding);
@@ -33,9 +56,9 @@ export default function WelcomePage() {
 
   useEffect(() => {
     if (me) {
-      router.replace("/play");
+      router.replace(playTarget);
     }
-  }, [me, router]);
+  }, [me, router, playTarget]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(handle.trim().toLowerCase()), 300);
@@ -53,15 +76,7 @@ export default function WelcomePage() {
   const ready = clerkLoaded && isSignedIn && me === null;
 
   if (!ready) {
-    return (
-      <main className="flex flex-1 items-center justify-center px-6 py-16">
-        <div className="w-full max-w-sm space-y-4">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      </main>
-    );
+    return <WelcomeSkeleton />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,7 +92,7 @@ export default function WelcomePage() {
     setSubmitting(true);
     try {
       await completeOnboarding({ handle: normalized, showRealName });
-      router.replace("/play");
+      router.replace(playTarget);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something broke";
       toast.error(message);

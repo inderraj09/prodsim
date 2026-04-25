@@ -1,11 +1,20 @@
 import { SignIn } from "@clerk/nextjs";
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
+  const { ref } = await searchParams;
+  const target =
+    ref && ref.length > 0
+      ? `/welcome?ref=${encodeURIComponent(ref)}`
+      : "/welcome";
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
       <SignIn
-        forceRedirectUrl="/welcome"
-        fallbackRedirectUrl="/welcome"
+        forceRedirectUrl={target}
+        fallbackRedirectUrl={target}
         appearance={{
           variables: {
             colorBackground: "oklch(0.205 0 0)",

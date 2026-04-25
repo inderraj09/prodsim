@@ -10,6 +10,7 @@
 
 import type * as attempts from "../attempts.js";
 import type * as bossFights from "../bossFights.js";
+import type * as challenges from "../challenges.js";
 import type * as crons from "../crons.js";
 import type * as judge from "../judge.js";
 import type * as judgeInternal from "../judgeInternal.js";
@@ -31,6 +32,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   attempts: typeof attempts;
   bossFights: typeof bossFights;
+  challenges: typeof challenges;
   crons: typeof crons;
   judge: typeof judge;
   judgeInternal: typeof judgeInternal;

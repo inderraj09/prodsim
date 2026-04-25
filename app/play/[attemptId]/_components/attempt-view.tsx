@@ -8,37 +8,46 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { JudgingState } from "./judging-state";
 import { ResultScreen } from "./result-screen";
+import { PublicAttemptView } from "./public-attempt-view";
 
 export function AttemptView({ attemptId }: { attemptId: Id<"attempts"> }) {
-  const data = useQuery(api.attempts.get, { attemptId });
+  const ownerData = useQuery(api.attempts.get, { attemptId });
+  const publicData = useQuery(api.attempts.getPublic, { attemptId });
   const me = useQuery(api.users.getMe);
 
-  if (data === undefined || me === undefined) {
+  if (
+    ownerData === undefined ||
+    publicData === undefined ||
+    me === undefined
+  ) {
     return <ViewSkeleton />;
   }
 
-  if (data === null || me === null) {
-    return <NotFoundState />;
+  // Owner branch — signed-in viewer is the attempt's author.
+  if (ownerData !== null && me !== null) {
+    const { attempt, scenario } = ownerData;
+    if (attempt.status === "pending") {
+      return <JudgingState attempt={attempt} scenario={scenario} />;
+    }
+    if (attempt.status === "error") {
+      return (
+        <ErrorState
+          message={
+            attempt.errorMessage ??
+            "The Principal is on lunch. Try again — this one's free."
+          }
+        />
+      );
+    }
+    return <ResultScreen attempt={attempt} scenario={scenario} user={me} />;
   }
 
-  const { attempt, scenario } = data;
-
-  if (attempt.status === "pending") {
-    return <JudgingState attempt={attempt} scenario={scenario} />;
+  // Public viewer branch — non-owner with a scored attempt.
+  if (publicData !== null) {
+    return <PublicAttemptView data={publicData} signedIn={me !== null} />;
   }
 
-  if (attempt.status === "error") {
-    return (
-      <ErrorState
-        message={
-          attempt.errorMessage ??
-          "The Principal is on lunch. Try again — this one's free."
-        }
-      />
-    );
-  }
-
-  return <ResultScreen attempt={attempt} scenario={scenario} user={me} />;
+  return <NotFoundState />;
 }
 
 function ViewSkeleton() {
@@ -58,10 +67,11 @@ function NotFoundState() {
         Not found
       </span>
       <p className="max-w-xs text-base">
-        This attempt either doesn&rsquo;t exist or isn&rsquo;t yours to read.
+        This attempt either doesn&rsquo;t exist or hasn&rsquo;t been scored
+        yet.
       </p>
       <Button asChild variant="outline">
-        <Link href="/play">Back to Inbox</Link>
+        <Link href="/">Back to home</Link>
       </Button>
     </main>
   );
