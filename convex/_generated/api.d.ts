@@ -8,11 +8,13 @@
  * @module
  */
 
+import type * as attempts from "../attempts.js";
 import type * as crons from "../crons.js";
 import type * as judge from "../judge.js";
 import type * as judgeInternal from "../judgeInternal.js";
 import type * as lib_prompts from "../lib/prompts.js";
 import type * as lib_timeIST from "../lib/timeIST.js";
+import type * as lib_xp from "../lib/xp.js";
 import type * as playWindows from "../playWindows.js";
 import type * as scenarios from "../scenarios.js";
 import type * as seed from "../seed.js";
@@ -25,11 +27,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  attempts: typeof attempts;
   crons: typeof crons;
   judge: typeof judge;
   judgeInternal: typeof judgeInternal;
   "lib/prompts": typeof lib_prompts;
   "lib/timeIST": typeof lib_timeIST;
+  "lib/xp": typeof lib_xp;
   playWindows: typeof playWindows;
   scenarios: typeof scenarios;
   seed: typeof seed;
