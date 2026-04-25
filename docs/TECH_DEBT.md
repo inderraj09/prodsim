@@ -52,6 +52,38 @@
 
 ---
 
+## TD-004 — Landing header uses text "Continue →" link instead of Clerk avatar
+
+**What:** Scoping §S1 step 1 says signed-in users should see an avatar top-right on the landing page. `app/page.tsx` currently renders a "Continue →" text link instead — same destination (`/play`), different visual.
+
+**Why:** No `/u/[handle]` profile route exists yet (deferred from §S9). An avatar without a profile to deep-link to is decoration. Skipping it kept the header simple and avoided a Clerk `<UserButton />` styling pass.
+
+**Impact:** Returning users don't get the personalised "this is *your* account" cue at the top.
+
+**When to fix:** When the public profile route ships (post-MVP), swap the link for `<UserButton />` with `userProfileMode="navigation"` pointing at `/u/[handle]`.
+
+**Effort to fix:** ~30 minutes including styling Clerk's appearance vars to match.
+
+**Date logged:** 2026-04-25
+
+---
+
+## TD-005 — Landing leaderboard uses All-Time instead of This-Week
+
+**What:** Scoping §S1 step 7 says "Leaderboard preview: top 10, updates live" without specifying the window. `app/page.tsx` reads from `api.leaderboard.topByXP` (All-Time) rather than `api.leaderboard.topThisWeek`.
+
+**Why:** At launch the user count is small. All-Time gives a stable list even when nobody scored this week. This-Week would frequently look empty or stale early on.
+
+**Impact:** New visitors don't see "who's hot right now" — they see who's accumulated the most ever, which can decay into the same names if active play drops.
+
+**When to fix:** Once weekly active user count reliably exceeds ~10. Switch the query, keep the section title generic ("Top PMs · this week").
+
+**Effort to fix:** ~5 minutes — single useQuery swap.
+
+**Date logged:** 2026-04-25
+
+---
+
 ## How to use this file
 
 When we deliberately skip something to keep velocity, log it here with the same format. Before launch, scan the list and decide what (if anything) actually needs fixing. Most weekend tech debt never needs to be paid back — it just dies when the project does.
