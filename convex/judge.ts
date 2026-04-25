@@ -115,7 +115,17 @@ export const run = internalAction({
         messages: [
           {
             role: "user",
-            content: buildUserPrompt(context),
+            content: buildUserPrompt({
+              scenarioTitle: context.scenarioTitle,
+              scenarioBody: context.scenarioBody,
+              scenarioDifficulty: context.scenarioDifficulty,
+              scenarioRubric: context.scenarioRubric,
+              userAnswer: context.userAnswer,
+              userLevel: context.userLevel,
+              mode: context.mode,
+              mcqOptions: context.mcqOptions,
+              mcqChoice: context.mcqChoice,
+            }),
           },
         ],
       });

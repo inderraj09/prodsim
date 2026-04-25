@@ -38,6 +38,9 @@ export const loadContext = internalQuery({
       scenarioBody: scenario.body,
       scenarioDifficulty: scenario.difficulty as string,
       scenarioRubric: scenario.rubric,
+      mode: (attempt.mode ?? "long-form") as "long-form" | "mcq",
+      mcqOptions: scenario.options ?? [],
+      mcqChoice: attempt.mcqChoice ?? undefined,
     };
   },
 });

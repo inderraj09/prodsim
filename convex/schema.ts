@@ -25,6 +25,11 @@ export const attemptStatusValidator = v.union(
   v.literal("error"),
 );
 
+export const attemptModeValidator = v.union(
+  v.literal("long-form"),
+  v.literal("mcq"),
+);
+
 const dimensionScoresValidator = v.object({
   productSense: v.number(),
   analyticalExecution: v.number(),
@@ -60,6 +65,7 @@ export default defineSchema({
     activeDate: v.optional(v.string()),
     isBossScenario: v.boolean(),
     hidden: v.boolean(),
+    options: v.optional(v.array(v.string())),
   })
     .index("by_date", ["activeDate"])
     .index("by_level_difficulty", ["level", "difficulty"]),
@@ -68,6 +74,8 @@ export default defineSchema({
     userId: v.id("users"),
     scenarioId: v.id("scenarios"),
     answer: v.string(),
+    mode: v.optional(attemptModeValidator),
+    mcqChoice: v.optional(v.string()),
     status: attemptStatusValidator,
     overallScore: v.optional(v.number()),
     dimensionScores: v.optional(dimensionScoresValidator),

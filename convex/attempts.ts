@@ -3,8 +3,11 @@ import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { incrementPlayUsage } from "./playWindows";
 
-const MIN_WORDS = 10;
-const MAX_WORDS = 500;
+const LONG_MIN_WORDS = 10;
+const LONG_MAX_WORDS = 500;
+const MCQ_MIN_WORDS = 5;
+const MCQ_MAX_WORDS = 30;
+const VALID_MCQ_LETTERS = ["A", "B", "C", "D"];
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -16,6 +19,10 @@ export const submit = mutation({
   args: {
     scenarioId: v.id("scenarios"),
     answer: v.string(),
+    mode: v.optional(
+      v.union(v.literal("long-form"), v.literal("mcq")),
+    ),
+    mcqChoice: v.optional(v.string()),
     referrerHandle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -32,17 +39,41 @@ export const submit = mutation({
       .unique();
     if (!user) throw new Error("Finish onboarding first");
 
+    const mode = args.mode ?? "long-form";
     const words = countWords(args.answer);
-    if (words < MIN_WORDS) {
-      throw new Error(`Answer is too short — at least ${MIN_WORDS} words.`);
-    }
-    if (words > MAX_WORDS) {
-      throw new Error(`Answer is too long — keep it under ${MAX_WORDS} words.`);
+    if (mode === "long-form") {
+      if (words < LONG_MIN_WORDS) {
+        throw new Error(
+          `Answer is too short — at least ${LONG_MIN_WORDS} words.`,
+        );
+      }
+      if (words > LONG_MAX_WORDS) {
+        throw new Error(
+          `Answer is too long — keep it under ${LONG_MAX_WORDS} words.`,
+        );
+      }
+    } else {
+      if (words < MCQ_MIN_WORDS) {
+        throw new Error(
+          `Why is too short — at least ${MCQ_MIN_WORDS} words.`,
+        );
+      }
+      if (words > MCQ_MAX_WORDS) {
+        throw new Error(
+          `Why is too long — keep it under ${MCQ_MAX_WORDS} words.`,
+        );
+      }
+      if (!args.mcqChoice || !VALID_MCQ_LETTERS.includes(args.mcqChoice)) {
+        throw new Error("Pick one of A, B, C, or D.");
+      }
     }
 
     const scenario = await ctx.db.get(args.scenarioId);
     if (!scenario) throw new Error("Scenario not found");
     if (scenario.hidden) throw new Error("Scenario unavailable");
+    if (mode === "mcq" && (!scenario.options || scenario.options.length === 0)) {
+      throw new Error("This scenario doesn't support MCQ mode.");
+    }
 
     let challengerUserId: typeof user._id | undefined;
     if (args.referrerHandle && args.referrerHandle.length > 0) {
@@ -61,6 +92,10 @@ export const submit = mutation({
       scenarioId: args.scenarioId,
       answer: args.answer,
       status: "pending",
+      mode,
+      ...(mode === "mcq" && args.mcqChoice
+        ? { mcqChoice: args.mcqChoice }
+        : {}),
       ...(challengerUserId
         ? { challengeContext: { challengerUserId } }
         : {}),

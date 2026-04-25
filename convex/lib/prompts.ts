@@ -44,8 +44,11 @@ export function buildUserPrompt(args: {
   scenarioRubric: string;
   userAnswer: string;
   userLevel: number;
+  mode: "long-form" | "mcq";
+  mcqOptions?: readonly string[];
+  mcqChoice?: string;
 }): string {
-  return [
+  const lines: string[] = [
     `USER LEVEL: ${args.userLevel} (1=Intern, 8=CPO)`,
     `SCENARIO DIFFICULTY: ${args.scenarioDifficulty}`,
     "",
@@ -56,9 +59,32 @@ export function buildUserPrompt(args: {
     "RUBRIC:",
     args.scenarioRubric,
     "",
-    "USER ANSWER:",
-    args.userAnswer,
-    "",
-    "Grade now. Return STRICT JSON only.",
-  ].join("\n");
+  ];
+
+  if (args.mode === "mcq") {
+    lines.push("MODE: MCQ + 1-sentence reasoning.");
+    if (args.mcqOptions && args.mcqOptions.length > 0) {
+      lines.push("OPTIONS:");
+      for (let i = 0; i < args.mcqOptions.length; i++) {
+        const letter = String.fromCharCode(65 + i);
+        lines.push(`${letter}) ${args.mcqOptions[i]}`);
+      }
+      lines.push("");
+    }
+    lines.push(`USER PICKED: ${args.mcqChoice ?? "?"}`);
+    lines.push("USER'S WHY (one sentence):");
+    lines.push(args.userAnswer);
+    lines.push("");
+    lines.push(
+      "Grade the strength of the reasoning given the chosen option. A clean MCQ + tight 'why' can score 5; a pick without justification cannot.",
+    );
+  } else {
+    lines.push("MODE: long-form.");
+    lines.push("USER ANSWER:");
+    lines.push(args.userAnswer);
+  }
+
+  lines.push("");
+  lines.push("Grade now. Return STRICT JSON only.");
+  return lines.join("\n");
 }
