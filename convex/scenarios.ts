@@ -13,6 +13,14 @@ function firstTwoSentences(body: string): string {
   return parts.join(" ").trim();
 }
 
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
 export const getTodaysScenario = query({
   args: {},
   handler: async (ctx) => {
@@ -43,29 +51,56 @@ export const getTodaysScenario = query({
           activeBoss.retryAvailableAt <= now;
         if (ready) {
           const bossScenario = await ctx.db.get(activeBoss.scenarioId);
-          if (bossScenario && !bossScenario.hidden) return bossScenario;
+          if (bossScenario && !bossScenario.hidden) {
+            return { ...bossScenario, isReplay: false as const };
+          }
         }
       }
     }
 
-    const today = currentISTDate();
-    const active = await ctx.db
-      .query("scenarios")
-      .withIndex("by_date", (q) => q.eq("activeDate", today))
-      .take(20);
-
-    const match = active.find(
-      (s) => s.level === userLevel && !s.hidden && !s.isBossScenario,
-    );
-    if (match) return match;
-
     const candidates = await ctx.db
       .query("scenarios")
       .withIndex("by_level_difficulty", (q) => q.eq("level", userLevel))
-      .take(20);
-    return (
-      candidates.find((s) => !s.hidden && !s.isBossScenario) ?? null
+      .take(100);
+    const eligible = candidates.filter(
+      (s) => !s.hidden && !s.isBossScenario,
     );
+    if (eligible.length === 0) return null;
+
+    const today = currentISTDate();
+
+    if (user) {
+      // Signed-in: skip scenarios this user has already attempted. Prefer
+      // today's stamped scenario when it's still unattempted (Wordle-style
+      // "Today's Case"); fall back to any unattempted at this level; then
+      // surface today's stamped (or any eligible) flagged isReplay.
+      const userAttempts = await ctx.db
+        .query("attempts")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .order("desc")
+        .take(500);
+      const attemptedIds = new Set(userAttempts.map((a) => a.scenarioId));
+      const unattempted = eligible.filter((s) => !attemptedIds.has(s._id));
+
+      if (unattempted.length > 0) {
+        const stampedUnattempted = unattempted.find(
+          (s) => s.activeDate === today,
+        );
+        const pick = stampedUnattempted ?? unattempted[0];
+        return { ...pick, isReplay: false as const };
+      }
+
+      const stamped =
+        eligible.find((s) => s.activeDate === today) ?? eligible[0];
+      return { ...stamped, isReplay: true as const };
+    }
+
+    // Anon: deterministic pick keyed on the IST date so every anon visitor
+    // today sees the same L1 scenario, and tomorrow's anons see a different
+    // one. Wordle-feel without needing a per-day cron stamp.
+    const seed = hashStr(today);
+    const pick = eligible[seed % eligible.length];
+    return { ...pick, isReplay: false as const };
   },
 });
 
