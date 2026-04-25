@@ -10,6 +10,7 @@ import {
 
 const IST = "Asia/Kolkata";
 const DAY_MS = 24 * 60 * 60 * 1000;
+const BOSS_BADGE = "Cleared Boss: Sam";
 
 function istDayOf(tsMs: number): string {
   return formatInTimeZone(tsMs, IST, "yyyy-MM-dd");
@@ -67,10 +68,51 @@ export const writeScore = internalMutation({
     const scenario = await ctx.db.get(attempt.scenarioId);
     if (!scenario) throw new Error("Scenario missing for attempt");
 
+    const isBoss = scenario.isBossScenario;
     const now = Date.now();
     const todayIST = istDayOf(now);
 
-    // Streak — based on most recent PREVIOUS scored attempt (exclude this one)
+    // ── Boss evaluation (if this attempt is against a boss scenario) ───
+    let bossPassed = false;
+    let bossToLevel: number | null = null;
+    if (isBoss) {
+      const candidates = await ctx.db
+        .query("bossFights")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .order("desc")
+        .take(10);
+      const activeBoss = candidates.find((bf) => !bf.passed);
+      if (activeBoss) {
+        const d = args.dimensionScores;
+        const composite =
+          d.productSense +
+          d.analyticalExecution +
+          d.strategicThinking +
+          d.communication;
+        bossPassed =
+          composite >= 14 &&
+          d.productSense >= 3 &&
+          d.analyticalExecution >= 3 &&
+          d.strategicThinking >= 3 &&
+          d.communication >= 3;
+
+        if (bossPassed) {
+          await ctx.db.patch(activeBoss._id, {
+            passed: true,
+            attemptId: args.attemptId,
+            retryAvailableAt: undefined,
+          });
+          bossToLevel = activeBoss.toLevel;
+        } else {
+          await ctx.db.patch(activeBoss._id, {
+            attemptId: args.attemptId,
+            retryAvailableAt: now + DAY_MS,
+          });
+        }
+      }
+    }
+
+    // ── Streak ─────────────────────────────────────────────────────────
     const recentForStreak = await ctx.db
       .query("attempts")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
@@ -79,7 +121,6 @@ export const writeScore = internalMutation({
     const prevScored = recentForStreak.find(
       (a) => a._id !== args.attemptId && a.status === "scored",
     );
-
     let newStreak: number;
     if (!prevScored) {
       newStreak = 1;
@@ -93,6 +134,7 @@ export const writeScore = internalMutation({
       }
     }
 
+    // ── XP (always awarded, even on boss fail) ─────────────────────────
     const xpAwarded = computeXPAward({
       overallScore: args.overallScore,
       difficulty: scenario.difficulty as Difficulty,
@@ -100,13 +142,18 @@ export const writeScore = internalMutation({
     });
     const newTotalXP = user.totalXP + xpAwarded;
 
-    // Level auto-update — L3→L8 only. L1→L2 and L2→L3 are boss-gated in Step 10.
-    const potentialLevel = levelForTotalXP(newTotalXP);
+    // ── Level: boss-pass overrides; regular path keeps L1/L2 frozen ──
     let newLevel = user.level;
-    if (potentialLevel > user.level && user.level >= 3) {
-      newLevel = potentialLevel;
+    if (bossPassed && bossToLevel !== null) {
+      newLevel = bossToLevel;
+    } else if (!isBoss) {
+      const potentialLevel = levelForTotalXP(newTotalXP);
+      if (potentialLevel > user.level && user.level >= 3) {
+        newLevel = potentialLevel;
+      }
     }
 
+    // ── Patch attempt with score ──────────────────────────────────────
     await ctx.db.patch(args.attemptId, {
       status: "scored",
       overallScore: args.overallScore,
@@ -118,7 +165,7 @@ export const writeScore = internalMutation({
       xpAwarded,
     });
 
-    // Archetype — mode of last 5 scored attempts (ties → most recent)
+    // ── Archetype mode of last 5 scored (includes this attempt) ───────
     const recentForMode = await ctx.db
       .query("attempts")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
@@ -127,7 +174,6 @@ export const writeScore = internalMutation({
     const lastFive = recentForMode
       .filter((a) => a.status === "scored" && a.archetype)
       .slice(0, 5);
-
     const counts = new Map<string, number>();
     for (const a of lastFive) {
       if (a.archetype) counts.set(a.archetype, (counts.get(a.archetype) ?? 0) + 1);
@@ -143,13 +189,63 @@ export const writeScore = internalMutation({
       }
     }
 
+    // ── Badges (boss pass earns "Cleared Boss: Sam") ──────────────────
+    let newBadges: string[] | undefined;
+    if (bossPassed) {
+      const existing = user.badges ?? [];
+      if (!existing.includes(BOSS_BADGE)) {
+        newBadges = [...existing, BOSS_BADGE];
+      }
+    }
+
+    // ── Patch user atomically ─────────────────────────────────────────
     await ctx.db.patch(user._id, {
       streak: newStreak,
       longestStreak: Math.max(user.longestStreak, newStreak),
       totalXP: newTotalXP,
       level: newLevel,
       ...(modeArchetype !== undefined ? { currentArchetype: modeArchetype } : {}),
+      ...(newBadges !== undefined ? { badges: newBadges } : {}),
     });
+
+    // ── Threshold detection for regular attempts ──────────────────────
+    if (!isBoss) {
+      const fromLevel = user.level;
+      const thresholdCrossed =
+        (fromLevel === 1 && newTotalXP >= 300) ||
+        (fromLevel === 2 && newTotalXP >= 800);
+      if (thresholdCrossed) {
+        const toLevel = fromLevel + 1;
+        const existing = await ctx.db
+          .query("bossFights")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .order("desc")
+          .take(10);
+        const hasPending = existing.some(
+          (bf) => !bf.passed && bf.fromLevel === fromLevel,
+        );
+        if (!hasPending) {
+          const bossScenarios = await ctx.db
+            .query("scenarios")
+            .withIndex("by_level_difficulty", (q) =>
+              q.eq("level", fromLevel).eq("difficulty", "boss"),
+            )
+            .take(10);
+          const bossScenario = bossScenarios.find(
+            (s) => s.isBossScenario && !s.hidden,
+          );
+          if (bossScenario) {
+            await ctx.db.insert("bossFights", {
+              userId: user._id,
+              fromLevel,
+              toLevel,
+              scenarioId: bossScenario._id,
+              passed: false,
+            });
+          }
+        }
+      }
+    }
   },
 });
 

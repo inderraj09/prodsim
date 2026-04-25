@@ -27,6 +27,24 @@ export const getTodaysScenario = query({
       .unique();
     if (!user) return null;
 
+    // Boss override: if user has a pending boss not in cooldown, serve it.
+    const bossCandidates = await ctx.db
+      .query("bossFights")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .take(10);
+    const activeBoss = bossCandidates.find((bf) => !bf.passed);
+    if (activeBoss) {
+      const now = Date.now();
+      const ready =
+        activeBoss.retryAvailableAt === undefined ||
+        activeBoss.retryAvailableAt <= now;
+      if (ready) {
+        const bossScenario = await ctx.db.get(activeBoss.scenarioId);
+        if (bossScenario && !bossScenario.hidden) return bossScenario;
+      }
+    }
+
     const today = currentISTDate();
     const active = await ctx.db
       .query("scenarios")

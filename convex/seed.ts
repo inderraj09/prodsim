@@ -133,3 +133,66 @@ export const run = internalMutation({
     return { inserted: SCENARIOS.length };
   },
 });
+
+const BOSS_RUBRIC_L1 = `This is a boss-fight gate. Score 5 only when the answer demonstrates ALL of:
+- Product Sense: names the actual tradeoff in one sentence — not a vague reframe.
+- Analytical Execution: cites a metric, threshold, or measurable proxy. Acknowledges what they'd be wrong about.
+- Strategic Thinking: commits to a specific recommendation; does not present three balanced options to the VP.
+- Communication: tight, decisive, scannable on a phone in 30 seconds. No hedging.
+A 4 is good but missing one of the above for that dimension. A 3 is a clear point of view but a real gap. Below 3 is not Senior-ready.`;
+
+const BOSS_RUBRIC_L2 = `This is the senior-PM gate. Score 5 only when the answer:
+- Product Sense: names the actual decision (not avoidance), with the false-dichotomy or accepted tradeoff stated explicitly.
+- Analytical Execution: sequences the work — what ships first, what's sacrificed, with rough numbers (eng-weeks, ARR at risk, not just "soon").
+- Strategic Thinking: states priors, names the data they'd want, takes ownership of being wrong.
+- Communication: reads like Sam can copy-paste it upward to her boss. No qualifiers on every sentence.
+A 4 means strong but missing rigor on one axis. A 3 is a real call with execution gaps. The bar is high — this scenario gates promotion to PM II.`;
+
+type BossSeed = {
+  level: 1 | 2;
+  title: string;
+  body: string;
+  rubric: string;
+};
+
+const BOSS_SCENARIOS: BossSeed[] = [
+  {
+    level: 1,
+    title: "Sam wants your call by 10am",
+    body: "Six weeks ago you shipped a tiny notification feature as an Intern. Marketing started using it for promo notifications and DAU is up 3%, but week-2 retention dropped 1.5pp and support volume is up 22%. Engineering wants to roll it back. Marketing says it's the most successful feature this quarter. The CEO asked Sam (your skip-level VP) what's going on, and Sam wants your written take by 10am tomorrow. You have 15 minutes. Sam doesn't want a recap — she wants your recommendation, your reasoning, the risk you're taking on, and what you'd need to be wrong about. This is your shot at PM I.",
+    rubric: BOSS_RUBRIC_L1,
+  },
+  {
+    level: 2,
+    title: "The platform decision",
+    body: "Your team has been building point features for a year. Three different product lines now have variations of the same notification, search, and onboarding logic. Engineering Director Aisha wants to consolidate into a shared platform team — 8 engineers reorged out of feature teams for 6 months. Marketing is panicking because the Q4 roadmap commits 3 user-visible features that depend on those engineers. Sam wants your recommendation by Friday. The choice is yours. The wrong answer in either direction is fine; the wrong reasoning is not. This is the PM II gate.",
+    rubric: BOSS_RUBRIC_L2,
+  },
+];
+
+export const runBosses = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const existing = await ctx.db
+      .query("scenarios")
+      .withIndex("by_level_difficulty", (q) =>
+        q.eq("level", 1).eq("difficulty", "boss"),
+      )
+      .first();
+    if (existing) {
+      return { skipped: true, reason: "Boss scenarios already exist" };
+    }
+    for (const s of BOSS_SCENARIOS) {
+      await ctx.db.insert("scenarios", {
+        title: s.title,
+        body: s.body,
+        rubric: s.rubric,
+        level: s.level,
+        difficulty: "boss",
+        isBossScenario: true,
+        hidden: false,
+      });
+    }
+    return { inserted: BOSS_SCENARIOS.length };
+  },
+});
