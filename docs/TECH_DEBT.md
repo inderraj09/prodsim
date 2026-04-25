@@ -20,6 +20,22 @@
 
 ---
 
+## TD-002 — Constraints panel cut from S4 scenario card
+
+**What:** Scoping §S4 specified a collapsible "Constraints panel" on the Inbox scenario card showing team, budget, timeline, and data-available facets per scenario. Step 7's `scenario-card.tsx` renders only the title, body, and difficulty badge — no constraints UI.
+
+**Why:** The schema's `scenarios` table has no structured `constraints` field; it would have required a Step 4 schema extension (add `constraints: v.optional(v.object({team, budget, timeline, dataAvailable}))`) plus seeded data for all 16 placeholders. Cutting kept Step 7 focused on the play loop.
+
+**Impact:** Players don't see a structured "team / budget / timeline / data" panel — those facets currently have to live inside the scenario `body` prose. Less skimmable on mobile.
+
+**When to fix:** After real scenario content lands (you're authoring those in another chat). Adding the schema field as `v.optional` keeps existing rows valid.
+
+**Effort to fix:** ~45 minutes — schema field + migration of seeded scenarios + `<ConstraintsPanel />` collapsible component.
+
+**Date logged:** 2026-04-25
+
+---
+
 ## TD-003 — Submit mutation does not gate scenarios to user's current level
 
 **What:** `convex/attempts.ts` `submit` accepts any `scenarioId` and grades the answer against it. There's no server-side check that the scenario is at the caller's `user.level` or that they've encountered it via the legitimate rotation.
