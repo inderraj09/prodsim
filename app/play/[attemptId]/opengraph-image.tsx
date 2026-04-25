@@ -86,7 +86,10 @@ export default async function Image({
 
   const { attempt, author } = data;
   const emoji = ARCHETYPE_EMOJI[attempt.archetype!] ?? "🎯";
-  const title = LEVEL_TITLES[author.level] ?? `L${author.level}`;
+  const handleLabel = author ? `@${author.handle}` : "@anonymous";
+  const title = author
+    ? (LEVEL_TITLES[author.level] ?? `L${author.level}`)
+    : "PM Intern";
   const dims = attempt.dimensionScores!;
 
   return new ImageResponse(
@@ -145,7 +148,7 @@ export default async function Image({
               opacity: 0.92,
             }}
           >
-            @{author.handle} · {title} · {attempt.overallScore}/100
+            {handleLabel} · {title} · {attempt.overallScore}/100
           </div>
           <div
             style={{

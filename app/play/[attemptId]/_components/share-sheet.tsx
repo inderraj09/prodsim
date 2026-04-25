@@ -27,6 +27,7 @@ export function ShareSheet({
 }) {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const shareUrl = `${origin}/play/${attemptId}`;
+  const isAnonAuthor = authorHandle === "anonymous";
   const challengeUrl = `${origin}/play?ref=${authorHandle}`;
   const downloadUrl = `/api/share-card/${attemptId}`;
   const text = `I scored ${overallScore}/100 as ${archetype} on ProdSim. Take a PM scenario:`;
@@ -78,22 +79,24 @@ export function ShareSheet({
           </Button>
         </div>
 
-        <div className="mx-4 mt-5 flex flex-col gap-2 rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            Challenge a friend
-          </span>
-          <p className="text-sm leading-6">
-            They&rsquo;ll see your card and play the same scenario.
-          </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="self-start"
-            onClick={() => copy(challengeUrl, "Challenge link")}
-          >
-            Copy challenge link
-          </Button>
-        </div>
+        {!isAnonAuthor ? (
+          <div className="mx-4 mt-5 flex flex-col gap-2 rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Challenge a friend
+            </span>
+            <p className="text-sm leading-6">
+              They&rsquo;ll see your card and play the same scenario.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="self-start"
+              onClick={() => copy(challengeUrl, "Challenge link")}
+            >
+              Copy challenge link
+            </Button>
+          </div>
+        ) : null}
       </SheetContent>
     </Sheet>
   );

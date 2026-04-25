@@ -59,7 +59,10 @@ export async function GET(
 
   const { attempt, author } = data;
   const emoji = ARCHETYPE_EMOJI[attempt.archetype!] ?? "🎯";
-  const title = LEVEL_TITLES[author.level] ?? `L${author.level}`;
+  const handleLabel = author ? `@${author.handle}` : "@anonymous";
+  const title = author
+    ? (LEVEL_TITLES[author.level] ?? `L${author.level}`)
+    : "PM Intern";
   const dims = attempt.dimensionScores!;
 
   return new ImageResponse(
@@ -118,7 +121,7 @@ export async function GET(
               opacity: 0.92,
             }}
           >
-            @{author.handle} · {title}
+            {handleLabel} · {title}
           </div>
           <div
             style={{
@@ -205,7 +208,7 @@ export async function GET(
           }}
         >
           <span>Take the case at prodsim.com</span>
-          <span>@{author.handle}</span>
+          <span>{handleLabel}</span>
         </div>
       </div>
     ),

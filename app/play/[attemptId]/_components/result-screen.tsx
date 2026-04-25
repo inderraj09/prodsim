@@ -36,8 +36,9 @@ export function ResultScreen({
     difficulty: string;
     isBossScenario: boolean;
   };
-  user: Doc<"users">;
+  user: Doc<"users"> | null;
 }) {
+  const isAnon = user === null;
   if (
     attempt.overallScore === undefined ||
     attempt.dimensionScores === undefined ||
@@ -50,31 +51,43 @@ export function ResultScreen({
     return null;
   }
 
-  const bossForAttempt = useQuery(api.bossFights.getForAttempt, {
-    attemptId: attempt._id,
-  });
-  const pendingBoss = useQuery(api.bossFights.getPending);
+  const bossForAttempt = useQuery(
+    api.bossFights.getForAttempt,
+    isAnon ? "skip" : { attemptId: attempt._id },
+  );
+  const pendingBoss = useQuery(
+    api.bossFights.getPending,
+    isAnon ? "skip" : {},
+  );
 
   const challengerUserId = attempt.challengeContext?.challengerUserId;
   const challengerLatest = useQuery(
     api.challenges.getChallengerLatest,
-    challengerUserId ? { challengerUserId } : "skip",
+    !isAnon && challengerUserId ? { challengerUserId } : "skip",
   );
 
-  const oldTotalXP = user.totalXP - attempt.xpAwarded;
+  const oldTotalXP = user ? user.totalXP - attempt.xpAwarded : 0;
   const oldLevel = levelForTotalXP(oldTotalXP);
   const regularLevelUp =
-    !scenario.isBossScenario && user.level > oldLevel && oldLevel >= 3;
+    !!user &&
+    !scenario.isBossScenario &&
+    user.level > oldLevel &&
+    oldLevel >= 3;
   const bossPassed =
-    scenario.isBossScenario && bossForAttempt?.passed === true;
+    !!user &&
+    scenario.isBossScenario &&
+    bossForAttempt?.passed === true;
   const justLeveledUp = regularLevelUp || bossPassed;
   const levelUpToLevel = bossPassed
-    ? (bossForAttempt?.toLevel ?? user.level)
-    : user.level;
+    ? (bossForAttempt?.toLevel ?? user?.level ?? 1)
+    : (user?.level ?? 1);
 
   const bossFailed =
-    scenario.isBossScenario && bossForAttempt?.passed === false;
+    !!user &&
+    scenario.isBossScenario &&
+    bossForAttempt?.passed === false;
   const showBossInvite =
+    !isAnon &&
     !scenario.isBossScenario &&
     pendingBoss !== undefined &&
     pendingBoss !== null &&
@@ -176,12 +189,14 @@ export function ResultScreen({
           className="flex items-end justify-between gap-4"
         >
           <XPCounter xp={attempt.xpAwarded} />
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Streak
-            </span>
-            <span className="text-2xl tabular-nums">🔥 {user.streak}</span>
-          </div>
+          {user ? (
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Streak
+              </span>
+              <span className="text-2xl tabular-nums">🔥 {user.streak}</span>
+            </div>
+          ) : null}
         </motion.div>
 
         {challengerLatest && attempt.overallScore !== undefined ? (
@@ -253,22 +268,47 @@ export function ResultScreen({
           >
             Share result →
           </Button>
-          <Button
-            asChild
-            variant="outline"
-            size="lg"
-            className="h-12 rounded-full text-base"
-          >
-            <Link href="/play">Play next</Link>
-          </Button>
-          <Button
-            asChild
-            variant="ghost"
-            size="lg"
-            className="h-12 rounded-full text-base"
-          >
-            <Link href="/leaderboard">See leaderboard</Link>
-          </Button>
+          {isAnon ? (
+            <>
+              <Button
+                asChild
+                variant="default"
+                size="lg"
+                className="h-12 rounded-full text-base"
+              >
+                <Link href="/sign-up">
+                  Bank these {attempt.xpAwarded} XP →
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="lg"
+                className="h-12 rounded-full text-base"
+              >
+                <Link href="/sign-up">See your rank on the leaderboard</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="h-12 rounded-full text-base"
+              >
+                <Link href="/play">Play next</Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="lg"
+                className="h-12 rounded-full text-base"
+              >
+                <Link href="/leaderboard">See leaderboard</Link>
+              </Button>
+            </>
+          )}
         </motion.div>
       </main>
 
@@ -276,7 +316,7 @@ export function ResultScreen({
         attemptId={attempt._id}
         archetype={attempt.archetype}
         overallScore={attempt.overallScore}
-        authorHandle={user.handle}
+        authorHandle={user?.handle ?? "anonymous"}
         open={shareOpen}
         onOpenChange={setShareOpen}
       />

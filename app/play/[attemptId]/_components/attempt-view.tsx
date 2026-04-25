@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -11,19 +12,27 @@ import { ResultScreen } from "./result-screen";
 import { PublicAttemptView } from "./public-attempt-view";
 
 export function AttemptView({ attemptId }: { attemptId: Id<"attempts"> }) {
+  const searchParams = useSearchParams();
+  const sessionToken = searchParams.get("s");
+
   const ownerData = useQuery(api.attempts.get, { attemptId });
+  const guestData = useQuery(
+    api.attempts.getGuest,
+    sessionToken ? { attemptId, sessionToken } : "skip",
+  );
   const publicData = useQuery(api.attempts.getPublic, { attemptId });
   const me = useQuery(api.users.getMe);
 
   if (
     ownerData === undefined ||
     publicData === undefined ||
-    me === undefined
+    me === undefined ||
+    (sessionToken !== null && guestData === undefined)
   ) {
     return <ViewSkeleton />;
   }
 
-  // Owner branch — signed-in viewer is the attempt's author.
+  // Authed owner — signed-in viewer is the attempt's author.
   if (ownerData !== null && me !== null) {
     const { attempt, scenario } = ownerData;
     if (attempt.status === "pending") {
@@ -42,7 +51,28 @@ export function AttemptView({ attemptId }: { attemptId: Id<"attempts"> }) {
     return <ResultScreen attempt={attempt} scenario={scenario} user={me} />;
   }
 
-  // Public viewer branch — non-owner with a scored attempt.
+  // Anon owner — sessionToken in URL matches the attempt's stored token.
+  if (guestData) {
+    const { attempt, scenario } = guestData;
+    if (attempt.status === "pending") {
+      return <JudgingState attempt={attempt} scenario={scenario} />;
+    }
+    if (attempt.status === "error") {
+      return (
+        <ErrorState
+          message={
+            attempt.errorMessage ??
+            "The Principal is on lunch. Try again — this one's free."
+          }
+        />
+      );
+    }
+    return (
+      <ResultScreen attempt={attempt} scenario={scenario} user={null} />
+    );
+  }
+
+  // Public viewer — no owner match, but a scored attempt exists.
   if (publicData !== null) {
     return <PublicAttemptView data={publicData} signedIn={me !== null} />;
   }

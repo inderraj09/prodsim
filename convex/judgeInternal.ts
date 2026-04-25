@@ -29,11 +29,10 @@ export const loadContext = internalQuery({
     if (!attempt) return null;
     const scenario = await ctx.db.get(attempt.scenarioId);
     if (!scenario) return null;
-    const user = await ctx.db.get(attempt.userId);
-    if (!user) return null;
+    const user = attempt.userId ? await ctx.db.get(attempt.userId) : null;
     return {
       userAnswer: attempt.answer,
-      userLevel: user.level,
+      userLevel: user?.level ?? 1,
       scenarioTitle: scenario.title,
       scenarioBody: scenario.body,
       scenarioDifficulty: scenario.difficulty as string,
@@ -65,8 +64,7 @@ export const writeScore = internalMutation({
     if (!attempt) throw new Error("Attempt not found");
     if (attempt.status !== "pending") return;
 
-    const user = await ctx.db.get(attempt.userId);
-    if (!user) throw new Error("User missing for attempt");
+    const user = attempt.userId ? await ctx.db.get(attempt.userId) : null;
 
     const scenario = await ctx.db.get(attempt.scenarioId);
     if (!scenario) throw new Error("Scenario missing for attempt");
@@ -75,10 +73,10 @@ export const writeScore = internalMutation({
     const now = Date.now();
     const todayIST = istDayOf(now);
 
-    // ── Boss evaluation (if this attempt is against a boss scenario) ───
+    // ── Boss evaluation (only if this attempt has a user — anon never boss) ───
     let bossPassed = false;
     let bossToLevel: number | null = null;
-    if (isBoss) {
+    if (isBoss && user) {
       const candidates = await ctx.db
         .query("bossFights")
         .withIndex("by_user", (q) => q.eq("userId", user._id))
@@ -115,48 +113,52 @@ export const writeScore = internalMutation({
       }
     }
 
-    // ── Streak ─────────────────────────────────────────────────────────
-    const recentForStreak = await ctx.db
-      .query("attempts")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .order("desc")
-      .take(20);
-    const prevScored = recentForStreak.find(
-      (a) => a._id !== args.attemptId && a.status === "scored",
-    );
-    let newStreak: number;
-    if (!prevScored) {
-      newStreak = 1;
-    } else {
-      const prevIST = istDayOf(prevScored._creationTime);
-      if (prevIST === todayIST) {
-        newStreak = user.streak;
+    // ── Streak — only meaningful with a user ──────────────────────────
+    let newStreak = 1;
+    if (user) {
+      const recentForStreak = await ctx.db
+        .query("attempts")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .order("desc")
+        .take(20);
+      const prevScored = recentForStreak.find(
+        (a) => a._id !== args.attemptId && a.status === "scored",
+      );
+      if (!prevScored) {
+        newStreak = 1;
       } else {
-        const gap = daysBetweenIST(prevIST, todayIST);
-        newStreak = gap === 1 ? user.streak + 1 : 1;
+        const prevIST = istDayOf(prevScored._creationTime);
+        if (prevIST === todayIST) {
+          newStreak = user.streak;
+        } else {
+          const gap = daysBetweenIST(prevIST, todayIST);
+          newStreak = gap === 1 ? user.streak + 1 : 1;
+        }
       }
     }
 
-    // ── XP (always awarded, even on boss fail) ─────────────────────────
+    // ── XP — always computed for attempt.xpAwarded display ────────────
     const xpAwarded = computeXPAward({
       overallScore: args.overallScore,
       difficulty: scenario.difficulty as Difficulty,
       streak: newStreak,
     });
-    const newTotalXP = user.totalXP + xpAwarded;
+    const newTotalXP = user ? user.totalXP + xpAwarded : 0;
 
     // ── Level: boss-pass overrides; regular path keeps L1/L2 frozen ──
-    let newLevel = user.level;
-    if (bossPassed && bossToLevel !== null) {
-      newLevel = bossToLevel;
-    } else if (!isBoss) {
-      const potentialLevel = levelForTotalXP(newTotalXP);
-      if (potentialLevel > user.level && user.level >= 3) {
-        newLevel = potentialLevel;
+    let newLevel = user?.level ?? 1;
+    if (user) {
+      if (bossPassed && bossToLevel !== null) {
+        newLevel = bossToLevel;
+      } else if (!isBoss) {
+        const potentialLevel = levelForTotalXP(newTotalXP);
+        if (potentialLevel > user.level && user.level >= 3) {
+          newLevel = potentialLevel;
+        }
       }
     }
 
-    // ── Patch attempt with score ──────────────────────────────────────
+    // ── Patch attempt with score (always) ─────────────────────────────
     await ctx.db.patch(args.attemptId, {
       status: "scored",
       overallScore: args.overallScore,
@@ -167,6 +169,9 @@ export const writeScore = internalMutation({
       whatWouldMakeThisA5: args.whatWouldMakeThisA5,
       xpAwarded,
     });
+
+    // Anon attempts stop here — no user doc to roll up into.
+    if (!user) return;
 
     // ── Archetype mode of last 5 scored (includes this attempt) ───────
     const recentForMode = await ctx.db

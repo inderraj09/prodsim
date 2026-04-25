@@ -38,7 +38,7 @@ type PublicData = {
     handle: string;
     displayName: string | null;
     level: number;
-  };
+  } | null;
 };
 
 export function PublicAttemptView({
@@ -58,11 +58,20 @@ export function PublicAttemptView({
     return null;
   }
 
-  const challengeHref = signedIn
-    ? `/play?ref=${encodeURIComponent(author.handle)}`
-    : `/sign-in?ref=${encodeURIComponent(author.handle)}`;
-  const title = LEVEL_TITLES[author.level] ?? `L${author.level}`;
-  const display = author.displayName ?? `@${author.handle}`;
+  const challengeHref = author
+    ? signedIn
+      ? `/play?ref=${encodeURIComponent(author.handle)}`
+      : `/sign-in?ref=${encodeURIComponent(author.handle)}`
+    : "/sign-in";
+  const title = author
+    ? (LEVEL_TITLES[author.level] ?? `L${author.level}`)
+    : "PM Intern";
+  const display = author
+    ? (author.displayName ?? `@${author.handle}`)
+    : "Anonymous PM";
+  const ctaLabel = author
+    ? `Challenge @${author.handle} →`
+    : "Take this kind of scenario →";
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-5 pt-6 pb-10">
@@ -167,7 +176,7 @@ export function PublicAttemptView({
         className="mt-2 flex flex-col gap-3"
       >
         <Button asChild size="lg" className="h-12 rounded-full text-base">
-          <Link href={challengeHref}>Challenge @{author.handle} →</Link>
+          <Link href={challengeHref}>{ctaLabel}</Link>
         </Button>
         <p className="text-center text-xs text-muted-foreground">
           Take the same kind of scenario. AI grades you against the same

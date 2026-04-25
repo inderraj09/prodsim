@@ -71,7 +71,8 @@ export default defineSchema({
     .index("by_level_difficulty", ["level", "difficulty"]),
 
   attempts: defineTable({
-    userId: v.id("users"),
+    userId: v.optional(v.id("users")),
+    sessionToken: v.optional(v.string()),
     scenarioId: v.id("scenarios"),
     answer: v.string(),
     mode: v.optional(attemptModeValidator),
@@ -91,7 +92,8 @@ export default defineSchema({
     ),
   })
     .index("by_user", ["userId"])
-    .index("by_scenario_score", ["scenarioId", "overallScore"]),
+    .index("by_scenario_score", ["scenarioId", "overallScore"])
+    .index("by_session", ["sessionToken"]),
 
   bossFights: defineTable({
     userId: v.id("users"),

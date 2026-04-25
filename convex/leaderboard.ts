@@ -45,6 +45,7 @@ export const topThisWeek = query({
     for (const a of recent) {
       if (a.status !== "scored") continue;
       if (a._creationTime < since) continue;
+      if (!a.userId) continue; // anon attempts don't roll up to leaderboard
       const prev = totals.get(a.userId) ?? 0;
       totals.set(a.userId, prev + (a.xpAwarded ?? 0));
     }

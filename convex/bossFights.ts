@@ -6,9 +6,11 @@ export const getForAttempt = query({
   handler: async (ctx, args) => {
     const attempt = await ctx.db.get(args.attemptId);
     if (!attempt) return null;
+    if (!attempt.userId) return null; // anon attempts can't be tied to a boss fight
+    const userId = attempt.userId;
     const candidates = await ctx.db
       .query("bossFights")
-      .withIndex("by_user", (q) => q.eq("userId", attempt.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .take(20);
     const match = candidates.find((bf) => bf.attemptId === args.attemptId);
     if (!match) return null;

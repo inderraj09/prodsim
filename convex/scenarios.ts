@@ -17,31 +17,34 @@ export const getTodaysScenario = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    let user = null;
+    if (identity) {
+      user = await ctx.db
+        .query("users")
+        .withIndex("by_tokenIdentifier", (q) =>
+          q.eq("tokenIdentifier", identity.tokenIdentifier),
+        )
+        .unique();
+    }
+    const userLevel = user?.level ?? 1; // anon visitors get L1 (Intern)
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-    if (!user) return null;
-
-    // Boss override: if user has a pending boss not in cooldown, serve it.
-    const bossCandidates = await ctx.db
-      .query("bossFights")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .order("desc")
-      .take(10);
-    const activeBoss = bossCandidates.find((bf) => !bf.passed);
-    if (activeBoss) {
-      const now = Date.now();
-      const ready =
-        activeBoss.retryAvailableAt === undefined ||
-        activeBoss.retryAvailableAt <= now;
-      if (ready) {
-        const bossScenario = await ctx.db.get(activeBoss.scenarioId);
-        if (bossScenario && !bossScenario.hidden) return bossScenario;
+    // Boss override: only for signed-in users with a pending non-cooldown boss.
+    if (user) {
+      const bossCandidates = await ctx.db
+        .query("bossFights")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .order("desc")
+        .take(10);
+      const activeBoss = bossCandidates.find((bf) => !bf.passed);
+      if (activeBoss) {
+        const now = Date.now();
+        const ready =
+          activeBoss.retryAvailableAt === undefined ||
+          activeBoss.retryAvailableAt <= now;
+        if (ready) {
+          const bossScenario = await ctx.db.get(activeBoss.scenarioId);
+          if (bossScenario && !bossScenario.hidden) return bossScenario;
+        }
       }
     }
 
@@ -52,13 +55,13 @@ export const getTodaysScenario = query({
       .take(20);
 
     const match = active.find(
-      (s) => s.level === user.level && !s.hidden && !s.isBossScenario,
+      (s) => s.level === userLevel && !s.hidden && !s.isBossScenario,
     );
     if (match) return match;
 
     const candidates = await ctx.db
       .query("scenarios")
-      .withIndex("by_level_difficulty", (q) => q.eq("level", user.level))
+      .withIndex("by_level_difficulty", (q) => q.eq("level", userLevel))
       .take(20);
     return (
       candidates.find((s) => !s.hidden && !s.isBossScenario) ?? null
