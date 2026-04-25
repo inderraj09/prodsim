@@ -55,6 +55,12 @@ export function ResultScreen({
   });
   const pendingBoss = useQuery(api.bossFights.getPending);
 
+  const challengerUserId = attempt.challengeContext?.challengerUserId;
+  const challengerLatest = useQuery(
+    api.challenges.getChallengerLatest,
+    challengerUserId ? { challengerUserId } : "skip",
+  );
+
   const oldTotalXP = user.totalXP - attempt.xpAwarded;
   const oldLevel = levelForTotalXP(oldTotalXP);
   const regularLevelUp =
@@ -177,6 +183,35 @@ export function ResultScreen({
             <span className="text-2xl tabular-nums">🔥 {user.streak}</span>
           </div>
         </motion.div>
+
+        {challengerLatest && attempt.overallScore !== undefined ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="rounded-2xl border border-primary/40 bg-primary/5 p-5 flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-primary">
+                Challenge from @{challengerLatest.handle}
+              </span>
+              <p className="text-sm leading-6">
+                You scored{" "}
+                <span className="font-semibold tabular-nums">
+                  {attempt.overallScore}
+                </span>
+                . @{challengerLatest.handle} scored{" "}
+                <span className="font-semibold tabular-nums">
+                  {challengerLatest.overallScore}
+                </span>
+                .
+              </p>
+            </div>
+            <Button asChild size="sm" variant="secondary" className="self-start">
+              <Link href="/play">Rematch →</Link>
+            </Button>
+          </motion.div>
+        ) : null}
 
         {bossFailed && bossForAttempt?.retryAvailableAt ? (
           <motion.div
