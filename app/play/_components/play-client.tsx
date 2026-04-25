@@ -20,11 +20,22 @@ export function PlayClient() {
   const scenario = useQuery(api.scenarios.getTodaysScenario);
   const cap = useQuery(api.playWindows.canPlay);
   const submit = useMutation(api.attempts.submit);
+  const syncFromIdentity = useMutation(api.users.syncFromIdentity);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (me === null) router.replace("/welcome");
   }, [me, router]);
+
+  // Backfill: if the user row is missing email/name, the Clerk JWT
+  // template likely didn't carry those claims at onboarding time.
+  // Fire once whenever we observe an empty email so newer JWTs (after
+  // the template gains an email claim) populate the row.
+  useEffect(() => {
+    if (me && (!me.email || me.email.length === 0)) {
+      syncFromIdentity().catch(() => {});
+    }
+  }, [me, syncFromIdentity]);
 
   const loading =
     me === undefined || scenario === undefined || cap === undefined;

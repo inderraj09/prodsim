@@ -41,6 +41,34 @@ export const isHandleAvailable = query({
   },
 });
 
+export const syncFromIdentity = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { synced: false, reason: "unauth" };
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+    if (!user) return { synced: false, reason: "no-user-row" };
+
+    const updates: { email?: string; name?: string } = {};
+    if ((!user.email || user.email.length === 0) && identity.email) {
+      updates.email = identity.email;
+    }
+    if (!user.name && identity.name) {
+      updates.name = identity.name;
+    }
+    if (Object.keys(updates).length === 0) {
+      return { synced: false, reason: "already-set" };
+    }
+    await ctx.db.patch(user._id, updates);
+    return { synced: true, updates: Object.keys(updates) };
+  },
+});
+
 export const completeOnboarding = mutation({
   args: {
     handle: v.string(),
