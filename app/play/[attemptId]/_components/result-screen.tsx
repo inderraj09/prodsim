@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import type { Doc } from "@/convex/_generated/dataModel";
@@ -11,6 +12,7 @@ import { ArchetypeHeadline } from "./archetype-headline";
 import { RubricGrid } from "./rubric-grid";
 import { XPCounter } from "./xp-counter";
 import { LevelUpBanner } from "./level-up-banner";
+import { ShareSheet } from "./share-sheet";
 
 export function ResultScreen({
   attempt,
@@ -36,6 +38,22 @@ export function ResultScreen({
   const oldTotalXP = user.totalXP - attempt.xpAwarded;
   const oldLevel = levelForTotalXP(oldTotalXP);
   const justLeveledUp = user.level > oldLevel && oldLevel >= 3;
+
+  const [shareOpen, setShareOpen] = useState(false);
+
+  async function handleShare() {
+    const url = `${window.location.origin}/play/${attempt._id}`;
+    const text = `I scored ${attempt.overallScore}/100 as ${attempt.archetype} on ProdSim`;
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({ title: "ProdSim", text, url });
+        return;
+      } catch {
+        // user dismissed or share unsupported — fall through to custom sheet
+      }
+    }
+    setShareOpen(true);
+  }
 
   return (
     <>
@@ -130,8 +148,12 @@ export function ResultScreen({
           transition={{ delay: 0.6 }}
           className="mt-2 flex flex-col gap-3"
         >
-          <Button asChild size="lg" className="h-12 rounded-full text-base">
-            <Link href="/play">Play next →</Link>
+          <Button
+            size="lg"
+            className="h-12 rounded-full text-base"
+            onClick={handleShare}
+          >
+            Share result →
           </Button>
           <Button
             asChild
@@ -139,10 +161,27 @@ export function ResultScreen({
             size="lg"
             className="h-12 rounded-full text-base"
           >
+            <Link href="/play">Play next</Link>
+          </Button>
+          <Button
+            asChild
+            variant="ghost"
+            size="lg"
+            className="h-12 rounded-full text-base"
+          >
             <Link href="/leaderboard">See leaderboard</Link>
           </Button>
         </motion.div>
       </main>
+
+      <ShareSheet
+        attemptId={attempt._id}
+        archetype={attempt.archetype}
+        overallScore={attempt.overallScore}
+        authorHandle={user.handle}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
 
       {justLeveledUp ? <LevelUpBanner newLevel={user.level} /> : null}
     </>
