@@ -9,6 +9,9 @@
  */
 
 import type * as crons from "../crons.js";
+import type * as judge from "../judge.js";
+import type * as judgeInternal from "../judgeInternal.js";
+import type * as lib_prompts from "../lib/prompts.js";
 import type * as lib_timeIST from "../lib/timeIST.js";
 import type * as playWindows from "../playWindows.js";
 import type * as scenarios from "../scenarios.js";
@@ -23,6 +26,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
+  judge: typeof judge;
+  judgeInternal: typeof judgeInternal;
+  "lib/prompts": typeof lib_prompts;
   "lib/timeIST": typeof lib_timeIST;
   playWindows: typeof playWindows;
   scenarios: typeof scenarios;
