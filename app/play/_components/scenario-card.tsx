@@ -13,8 +13,13 @@ const NPC_BY_LEVEL: Record<number, { name: string; role: string }> = {
   8: { name: "Theo", role: "Board Member" },
 };
 
-export function ScenarioCard({ scenario }: { scenario: Doc<"scenarios"> }) {
+export function ScenarioCard({
+  scenario,
+}: {
+  scenario: Doc<"scenarios"> & { isReplay?: boolean };
+}) {
   const isBoss = scenario.isBossScenario;
+  const isReplay = scenario.isReplay === true;
   const npc = isBoss
     ? { name: "Sam", role: "skip-level VP" }
     : NPC_BY_LEVEL[scenario.level] ?? { name: "Anonymous", role: "PM" };
@@ -41,12 +46,22 @@ export function ScenarioCard({ scenario }: { scenario: Doc<"scenarios"> }) {
             {scenario.title}
           </h2>
         </div>
-        <Badge
-          variant={isBoss ? "destructive" : "secondary"}
-          className="shrink-0 capitalize"
-        >
-          {scenario.difficulty}
-        </Badge>
+        <div className="flex shrink-0 items-center gap-2">
+          {isReplay && !isBoss ? (
+            <Badge
+              variant="outline"
+              className="border-border/60 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground"
+            >
+              Replay
+            </Badge>
+          ) : null}
+          <Badge
+            variant={isBoss ? "destructive" : "secondary"}
+            className="capitalize"
+          >
+            {scenario.difficulty}
+          </Badge>
+        </div>
       </div>
       <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/90">
         {scenario.body}
@@ -54,6 +69,11 @@ export function ScenarioCard({ scenario }: { scenario: Doc<"scenarios"> }) {
       {isBoss ? (
         <p className="text-xs leading-6 text-destructive/90">
           Pass criteria: composite ≥14 / 20, no dimension below 3.
+        </p>
+      ) : null}
+      {isReplay && !isBoss ? (
+        <p className="text-xs leading-6 text-muted-foreground">
+          You&rsquo;ve played this one. Submitting again will be graded fresh.
         </p>
       ) : null}
     </Card>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatInTimeZone } from "date-fns-tz";
 
 type Cap = {
   allowed: boolean;
@@ -19,11 +18,6 @@ function formatRemaining(ms: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function resetLabelFor(nextResetAt: number): string {
-  const istHour = Number(formatInTimeZone(nextResetAt, "Asia/Kolkata", "H"));
-  return istHour === 12 ? "12pm IST" : "12am IST";
-}
-
 export function PlayWindowIndicator({ cap }: { cap: Cap }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -31,17 +25,10 @@ export function PlayWindowIndicator({ cap }: { cap: Cap }) {
     return () => clearInterval(t);
   }, []);
 
-  const reset = resetLabelFor(cap.nextResetAt);
-
-  if (!cap.allowed) {
-    return (
-      <div className="text-xs text-muted-foreground">
-        Come back at {reset} for {cap.playsPerWindow} more 🔥
-      </div>
-    );
-  }
-
-  const dots = Array.from({ length: cap.playsPerWindow }, (_, i) => i < cap.playsLeft);
+  const dots = Array.from(
+    { length: cap.playsPerWindow },
+    (_, i) => i < cap.playsLeft,
+  );
   const countdown = formatRemaining(cap.nextResetAt - now);
 
   return (
