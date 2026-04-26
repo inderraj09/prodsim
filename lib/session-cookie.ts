@@ -11,3 +11,8 @@ export function setSessionCookie(token: string): void {
   if (typeof document === "undefined") return;
   document.cookie = `${NAME}=${encodeURIComponent(token)}; Path=/; Max-Age=${MAX_AGE}; SameSite=Lax`;
 }
+
+export function clearSessionCookie(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+}

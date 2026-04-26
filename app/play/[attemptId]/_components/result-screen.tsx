@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { useQuery } from "convex/react";
 import type { Doc } from "@/convex/_generated/dataModel";
@@ -59,6 +60,13 @@ export function ResultScreen({
     api.bossFights.getPending,
     isAnon ? "skip" : {},
   );
+  const isReplay = useQuery(
+    api.attempts.isReplay,
+    isAnon ? "skip" : { attemptId: attempt._id },
+  );
+
+  const searchParams = useSearchParams();
+  const justClaimed = searchParams.get("claimed") === "1";
 
   const challengerUserId = attempt.challengeContext?.challengerUserId;
   const challengerLatest = useQuery(
@@ -113,6 +121,17 @@ export function ResultScreen({
   return (
     <>
       <main className="flex flex-1 flex-col gap-6 px-5 pt-6 pb-10">
+        {justClaimed ? (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/5 px-3 py-2 text-xs text-emerald-300"
+          >
+            <span aria-hidden>✓</span>
+            <span>Saved to your account</span>
+          </motion.div>
+        ) : null}
+
         <motion.div
           initial={{ y: 12, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -135,9 +154,19 @@ export function ResultScreen({
                 {attempt.overallScore}
               </span>
               <span className="text-base text-muted-foreground">/ 100</span>
-              <Badge variant="secondary" className="ml-auto capitalize">
-                {scenario.difficulty}
-              </Badge>
+              <div className="ml-auto flex items-center gap-2 self-center">
+                {isReplay ? (
+                  <Badge
+                    variant="outline"
+                    className="border-border/60 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground"
+                  >
+                    Replay
+                  </Badge>
+                ) : null}
+                <Badge variant="secondary" className="capitalize">
+                  {scenario.difficulty}
+                </Badge>
+              </div>
             </div>
           </Card>
         </motion.div>

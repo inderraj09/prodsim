@@ -5,6 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import {
+  getSessionCookie,
+  clearSessionCookie,
+} from "@/lib/session-cookie";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +46,7 @@ function WelcomeForm() {
   const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
   const me = useQuery(api.users.getMe, isSignedIn ? {} : "skip");
   const completeOnboarding = useMutation(api.users.completeOnboarding);
+  const claimGuest = useMutation(api.attempts.claimGuestAttempt);
 
   const [handle, setHandle] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -92,7 +97,28 @@ function WelcomeForm() {
     setSubmitting(true);
     try {
       await completeOnboarding({ handle: normalized, showRealName });
-      router.replace(playTarget);
+
+      // Claim any guest attempt under the cookie. If a scored attempt was
+      // claimed, route the user to its result page so they see the "saved"
+      // moment before going on to play more.
+      const cookieToken = getSessionCookie();
+      let nextRoute = playTarget;
+      if (cookieToken) {
+        try {
+          const result = await claimGuest({ sessionToken: cookieToken });
+          if (result.claimed > 0) {
+            toast.success("Saved your earlier result ✓");
+            if (result.claimedAttemptIds.length > 0) {
+              nextRoute = `/play/${result.claimedAttemptIds[0]}?claimed=1`;
+            }
+          }
+        } catch {
+          // Don't block onboarding if claim fails.
+        }
+        clearSessionCookie();
+      }
+
+      router.replace(nextRoute);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something broke";
       toast.error(message);

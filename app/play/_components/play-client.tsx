@@ -9,7 +9,11 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { getSessionCookie, setSessionCookie } from "@/lib/session-cookie";
+import {
+  getSessionCookie,
+  setSessionCookie,
+  clearSessionCookie,
+} from "@/lib/session-cookie";
 import { TopBar } from "./top-bar";
 import { PlayWindowIndicator } from "./play-window-indicator";
 import { ScenarioCard } from "./scenario-card";
@@ -41,6 +45,7 @@ export function PlayClient() {
 
   const submit = useMutation(api.attempts.submit);
   const submitGuest = useMutation(api.attempts.submitGuest);
+  const claimGuest = useMutation(api.attempts.claimGuestAttempt);
   const syncFromIdentity = useMutation(api.users.syncFromIdentity);
   const [submitting, setSubmitting] = useState(false);
 
@@ -57,6 +62,23 @@ export function PlayClient() {
       syncFromIdentity().catch(() => {});
     }
   }, [me, syncFromIdentity]);
+
+  // Stale-cookie claim: signed-in user landing on /play with a leftover
+  // anon cookie reassigns any orphan attempt to their account. Clear the
+  // cookie immediately so the effect doesn't re-fire on subsequent renders.
+  useEffect(() => {
+    if (!isSignedIn || !me) return;
+    const stale = getSessionCookie();
+    if (!stale) return;
+    clearSessionCookie();
+    claimGuest({ sessionToken: stale })
+      .then((result) => {
+        if (result.claimed > 0) {
+          toast.success("Saved your earlier result ✓");
+        }
+      })
+      .catch(() => {});
+  }, [isSignedIn, me, claimGuest]);
 
   if (!clerkLoaded) return <PlaySkeleton />;
 

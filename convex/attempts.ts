@@ -1,7 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { incrementPlayUsage } from "./playWindows";
+import { istDayOf, daysBetweenIST } from "./lib/timeIST";
+import { levelForTotalXP } from "./lib/xp";
 
 const LONG_MIN_WORDS = 10;
 const LONG_MAX_WORDS = 500;
@@ -110,6 +113,141 @@ export const submitGuest = mutation({
     });
 
     return { attemptId, sessionToken };
+  },
+});
+
+export const claimGuestAttempt = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+    if (!user) throw new Error("Finish onboarding first");
+
+    const candidates = await ctx.db
+      .query("attempts")
+      .withIndex("by_session", (q) => q.eq("sessionToken", args.sessionToken))
+      .take(10);
+
+    let claimed = 0;
+    const claimedAttemptIds: typeof candidates[number]["_id"][] = [];
+    for (const attempt of candidates) {
+      if (attempt.userId !== undefined) continue;
+
+      // Patch first so subsequent queries include this attempt under the user.
+      await ctx.db.patch(attempt._id, {
+        userId: user._id,
+        sessionToken: undefined,
+      });
+      claimed++;
+      claimedAttemptIds.push(attempt._id);
+
+      // Only scored attempts roll up into user state. Pending → judge's
+      // writeScore handles the rollup when it lands. Error → nothing to add.
+      if (
+        attempt.status !== "scored" ||
+        attempt.xpAwarded === undefined ||
+        attempt.xpAwarded === null
+      ) {
+        continue;
+      }
+
+      // Re-fetch user (state may have shifted across iterations) and recent
+      // attempts (now includes the just-claimed one).
+      const fresh = await ctx.db.get(user._id);
+      if (!fresh) continue;
+
+      const recent = await ctx.db
+        .query("attempts")
+        .withIndex("by_user", (q) => q.eq("userId", fresh._id))
+        .order("desc")
+        .take(20);
+
+      const prevScored = recent.find(
+        (a) => a._id !== attempt._id && a.status === "scored",
+      );
+      const claimedIST = istDayOf(attempt._creationTime);
+
+      let newStreak = 1;
+      if (prevScored) {
+        const prevIST = istDayOf(prevScored._creationTime);
+        if (prevIST === claimedIST) {
+          newStreak = fresh.streak;
+        } else {
+          const gap = daysBetweenIST(prevIST, claimedIST);
+          newStreak = gap === 1 ? fresh.streak + 1 : 1;
+        }
+      }
+
+      const newTotalXP = fresh.totalXP + attempt.xpAwarded;
+
+      // Level: anon attempts never trigger boss (rate-limited to 1, no boss
+      // scenarios served to anon). Apply the standard freeze for L1/L2.
+      let newLevel = fresh.level;
+      const potentialLevel = levelForTotalXP(newTotalXP);
+      if (potentialLevel > fresh.level && fresh.level >= 3) {
+        newLevel = potentialLevel;
+      }
+
+      // Archetype mode over last 5 scored — recent already includes the claim.
+      const lastFive = recent
+        .filter((a) => a.status === "scored" && a.archetype)
+        .slice(0, 5);
+      const counts = new Map<string, number>();
+      for (const a of lastFive) {
+        if (a.archetype) counts.set(a.archetype, (counts.get(a.archetype) ?? 0) + 1);
+      }
+      let modeArchetype: string | undefined;
+      let maxCount = 0;
+      for (const a of lastFive) {
+        if (!a.archetype) continue;
+        const c = counts.get(a.archetype)!;
+        if (c > maxCount) {
+          maxCount = c;
+          modeArchetype = a.archetype;
+        }
+      }
+
+      await ctx.db.patch(fresh._id, {
+        streak: newStreak,
+        longestStreak: Math.max(fresh.longestStreak, newStreak),
+        totalXP: newTotalXP,
+        level: newLevel,
+        ...(modeArchetype !== undefined
+          ? {
+              currentArchetype:
+                modeArchetype as Doc<"users">["currentArchetype"],
+            }
+          : {}),
+      });
+    }
+
+    return { claimed, claimedAttemptIds };
+  },
+});
+
+export const isReplay = query({
+  args: { attemptId: v.id("attempts") },
+  handler: async (ctx, args) => {
+    const attempt = await ctx.db.get(args.attemptId);
+    if (!attempt) return false;
+    if (!attempt.userId) return false;
+    const userId = attempt.userId;
+    const userAttempts = await ctx.db
+      .query("attempts")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .take(100);
+    return userAttempts.some(
+      (a) =>
+        a._id !== attempt._id &&
+        a.scenarioId === attempt.scenarioId &&
+        a._creationTime < attempt._creationTime,
+    );
   },
 });
 

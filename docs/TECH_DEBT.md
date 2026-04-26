@@ -84,6 +84,54 @@
 
 ---
 
+## TD-009 — claim-on-mount clears cookie before awaiting the claim mutation
+
+**What:** `app/play/_components/play-client.tsx` calls `clearSessionCookie()` synchronously before `await claimGuest(...)`. If the claim mutation fails (network blip, Convex error), the cookie is already gone and the user has no way to retry the claim.
+
+**Why:** Trade-off chosen to prevent the `useEffect` from re-firing on every re-render of `play-client`. Without the early clear, the effect would queue another claim on every render where `me` changed identity. Using a `useRef` guard would keep the cookie until success but adds complexity.
+
+**Impact:** Rare. Convex mutations rarely fail in normal operation. When they do, the user loses their guest attempt's XP/streak forever. They'd have to sign out and sign back in (re-trigger Clerk's session) to recover, which doesn't actually help because the cookie is already cleared.
+
+**When to fix:** Once we have observability on claim failure rate. If failures > 0.5% in prod, swap to the useRef-guard pattern: keep cookie, mark "claim attempted" via ref, only clear cookie on success.
+
+**Effort to fix:** ~15 minutes.
+
+**Date logged:** 2026-04-26
+
+---
+
+## TD-010 — isReplay query scans only the user's last 100 attempts
+
+**What:** `convex/attempts.ts` `isReplay` queries `attempts.by_user`, takes 100 most recent. Past 100 attempts, an older attempt at the same scenario won't be detected — `isReplay` returns false even though it's actually a replay.
+
+**Why:** Without a compound index `[userId, scenarioId]`, there's no efficient way to ask "did this user play this scenario before this attempt?" The 100-take is a defensive cap that works for active users (5+ months at 6 plays/day = 900 plays).
+
+**Impact:** False negatives on the result-screen replay badge for power users with deep history. Cosmetic only — no scoring or rotation impact.
+
+**When to fix:** When any user's `attempts` count crosses 100, OR when we want to add "your previous attempt for this scenario" link on the result screen (which would also need the index).
+
+**Effort to fix:** ~20 minutes — add `.index("by_user_scenario", ["userId", "scenarioId"])` to schema, query via that index instead. No data migration needed (Convex builds indexes automatically).
+
+**Date logged:** 2026-04-26
+
+---
+
+## TD-008 — Duplicate user-rollup logic in writeScore + claimGuestAttempt
+
+**What:** `convex/judgeInternal.ts` `writeScore` and `convex/attempts.ts` `claimGuestAttempt` both compute streak / totalXP / level / archetype mode for the user doc and patch the same fields. The math is identical but inlined twice.
+
+**Why:** 14B shipped `claimGuestAttempt` under time pressure; extracting a shared helper would have widened scope. Duplication is contained — both implementations live in the same backend.
+
+**Impact:** Drift risk. If streak rules change (e.g., add a leaderboard-week multiplier or a longest-streak bonus), both call sites need the update. Easy to fix one and forget the other — silent behaviour bug.
+
+**When to fix:** Before any non-trivial change to the rollup math.
+
+**Effort to fix:** ~45 minutes — extract `applyAttemptToUser(ctx, user, attempt, scenario)` helper to `convex/lib/userRollup.ts`, callable from both `writeScore` and `claimGuestAttempt`. Pure refactor, no behaviour change. Add unit tests for the helper.
+
+**Date logged:** 2026-04-26
+
+---
+
 ## How to use this file
 
 When we deliberately skip something to keep velocity, log it here with the same format. Before launch, scan the list and decide what (if anything) actually needs fixing. Most weekend tech debt never needs to be paid back — it just dies when the project does.
