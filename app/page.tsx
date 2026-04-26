@@ -58,7 +58,7 @@ export default function Home() {
           AI-graded career sim. 8 levels. Intern to CPO.
         </p>
         <Button asChild size="lg" className="mt-2 h-12 rounded-full text-base">
-          <Link href="/sign-in">Play today&rsquo;s case →</Link>
+          <Link href="/play">Play today&rsquo;s case →</Link>
         </Button>
         <p className="text-xs tabular-nums text-muted-foreground">
           {LIVE_PLAYERS} PMs playing. {LIVE_CPOS} have reached CPO.
@@ -94,7 +94,7 @@ export default function Home() {
         </Card>
         {!isSignedIn ? (
           <Button asChild variant="outline" className="self-start">
-            <Link href="/sign-in">Sign in to play →</Link>
+            <Link href="/play">Play this case →</Link>
           </Button>
         ) : null}
       </section>
